@@ -8,6 +8,7 @@ import 'wallet/wallet_list_screen.dart';
 import 'expense/add_edit_expense_screen.dart';
 import 'reports/analytics_screen.dart';
 import 'expense/sms_transaction_list_screen.dart';
+import 'settings_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -17,6 +18,8 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+  int _selectedIndex = 0;
+
   @override
   void initState() {
     super.initState();
@@ -25,13 +28,58 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
+  void _onItemTapped(int index) {
+    setState(() {
+      _selectedIndex = index;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    
+    final List<Widget> pages = [
+      const _DashboardView(),
+      const WalletListScreen(),
+      const AnalyticsScreen(),
+      const SettingsScreen(),
+    ];
+
+    return Scaffold(
+      body: IndexedStack(
+        index: _selectedIndex,
+        children: pages,
+      ),
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: _selectedIndex,
+        onDestinationSelected: _onItemTapped,
+        destinations: const [
+          NavigationDestination(icon: Icon(Icons.dashboard_outlined), selectedIcon: Icon(Icons.dashboard), label: 'Home'),
+          NavigationDestination(icon: Icon(Icons.account_balance_wallet_outlined), selectedIcon: Icon(Icons.account_balance_wallet), label: 'Wallets'),
+          NavigationDestination(icon: Icon(Icons.pie_chart_outline), selectedIcon: Icon(Icons.pie_chart), label: 'Analytics'),
+          NavigationDestination(icon: Icon(Icons.settings_outlined), selectedIcon: Icon(Icons.settings), label: 'Settings'),
+        ],
+      ),
+      floatingActionButton: _selectedIndex == 0 ? FloatingActionButton(
+        onPressed: () {
+          Navigator.push(context, MaterialPageRoute(builder: (_) => const AddEditExpenseScreen()));
+        },
+        backgroundColor: Colors.black,
+        foregroundColor: Colors.white,
+        child: const Icon(Icons.add),
+      ) : null,
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
+    );
+  }
+}
+
+class _DashboardView extends StatelessWidget {
+  const _DashboardView();
+
   @override
   Widget build(BuildContext context) {
     final db = Provider.of<AppDatabase>(context);
     final profileId = Provider.of<ProfileProvider>(context).currentProfileId;
     final theme = Theme.of(context);
-
-    // Date formatting
     final dateFormat = DateFormat('MMM d, y');
     final currencyFormat = NumberFormat.currency(symbol: '৳', decimalDigits: 0);
 
@@ -41,26 +89,21 @@ class _HomeScreenState extends State<HomeScreen> {
         title: const Text('Dashboard'),
         elevation: 0,
         backgroundColor: Colors.transparent,
+        automaticallyImplyLeading: false, 
         actions: [
-          IconButton(
-            icon: const Icon(Icons.settings),
-            onPressed: () {
-               // Settings placeholder
-            },
-          )
+           IconButton(icon: const Icon(Icons.sms_outlined), onPressed: (){
+              Navigator.push(context, MaterialPageRoute(builder: (_) => const SmsTransactionListScreen()));
+           })
         ],
       ),
-      drawer: _buildDrawer(context),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
         child: Column(
           children: [
             // Total Balance Card
             StreamBuilder<List<Wallet>>(
-              stream: db.getWalletsForProfile(profileId).asStream(), // Simplified, usually watch()
-              // Better to watch wallets specifically if we want real-time balance updates from DB
+              stream: db.getWalletsForProfile(profileId).asStream(), 
               builder: (context, snapshot) {
-                 // We actually need to watch because balance changes.
                  return StreamBuilder<List<Wallet>>(
                    stream: (db.select(db.wallets)..where((t) => t.profileId.equals(profileId))).watch(),
                    builder: (context, walletSnap) {
@@ -164,7 +207,7 @@ class _HomeScreenState extends State<HomeScreen> {
             
             const SizedBox(height: 10),
 
-            // Recent Transactions List
+             // Recent Transactions List
             StreamBuilder<List<TransactionWithCategory>>(
               stream: db.watchAllTransactions(profileId),
               builder: (context, snapshot) {
@@ -183,7 +226,7 @@ class _HomeScreenState extends State<HomeScreen> {
                    ));
                  }
 
-                 // Take top 5
+                 // Take top 10
                  final recent = transactions.take(10).toList();
 
                  return ListView.separated(
@@ -224,19 +267,10 @@ class _HomeScreenState extends State<HomeScreen> {
                  );
               },
             ),
-            const SizedBox(height: 80), // Bottom padding for FAB
+            const SizedBox(height: 80),
           ],
         ),
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          Navigator.push(context, MaterialPageRoute(builder: (_) => const AddEditExpenseScreen()));
-        },
-        backgroundColor: Colors.black, // Dark accent like the design
-        foregroundColor: Colors.white,
-        child: const Icon(Icons.add),
-      ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
     );
   }
 
@@ -263,58 +297,5 @@ class _HomeScreenState extends State<HomeScreen> {
         ],
       ),
     );
-  }
-
-  Widget _buildDrawer(BuildContext context) {
-      return Drawer(
-        child: ListView(
-          padding: EdgeInsets.zero,
-          children: [
-            const DrawerHeader(
-              decoration: BoxDecoration(color: Colors.deepPurple),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  CircleAvatar(backgroundColor: Colors.white, child: Icon(Icons.person)),
-                  SizedBox(height: 10),
-                  Text('Shadman', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
-                  Text('shadman@example.com', style: TextStyle(color: Colors.white70, fontSize: 14)),
-                ],
-              ),
-            ),
-            ListTile(
-              leading: const Icon(Icons.dashboard_outlined),
-              title: const Text('Dashboard'),
-              onTap: () => Navigator.pop(context),
-              selected: true,
-            ),
-            ListTile(
-              leading: const Icon(Icons.account_balance_wallet_outlined),
-              title: const Text('Wallets'),
-              onTap: () {
-                Navigator.pop(context);
-                Navigator.push(context, MaterialPageRoute(builder: (_) => const WalletListScreen()));
-              },
-            ),
-             ListTile(
-              leading: const Icon(Icons.pie_chart_outline),
-              title: const Text('Analytics'),
-              onTap: () {
-                Navigator.pop(context);
-                Navigator.push(context, MaterialPageRoute(builder: (_) => const AnalyticsScreen()));
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.sms_outlined),
-              title: const Text('Scan SMS'),
-              onTap: () {
-                Navigator.pop(context);
-                Navigator.push(context, MaterialPageRoute(builder: (_) => const SmsTransactionListScreen()));
-              },
-            ),
-          ],
-        ),
-      );
   }
 }
