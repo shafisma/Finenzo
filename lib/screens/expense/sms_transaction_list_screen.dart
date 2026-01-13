@@ -46,8 +46,8 @@ class _SmsTransactionListScreenState extends State<SmsTransactionListScreen> {
       // We skip full AI mapping and just show the Add Screen pre-filled or a quick confirm dialog
       // For speed, let's use a quick confirm dialog that defaults to Cash/Expense
       
-      // Fetch default categories/wallets
-      final categories = await (db.select(db.categories)..where((t) => t.isExpense.equals(true) & t.profileId.equals(profileId))).get();
+      // Fetch all categories (Income & Expense)
+      final categories = await (db.select(db.categories)..where((t) => t.profileId.equals(profileId))).get();
       final wallets = await (db.select(db.wallets)..where((t) => t.profileId.equals(profileId))).get();
       
       if (!mounted) return;
@@ -80,7 +80,13 @@ class _SmsTransactionListScreenState extends State<SmsTransactionListScreen> {
                                    DropdownButtonFormField<int>(
                                       value: localCategory,
                                       hint: const Text('Category'),
-                                      items: categories.map((c) => DropdownMenuItem(value: c.id, child: Text(c.name))).toList(),
+                                      items: categories.map((c) => DropdownMenuItem(
+                                        value: c.id, 
+                                        child: Text(
+                                          c.name,
+                                          style: TextStyle(color: c.isExpense ? Colors.red : Colors.green),
+                                        ),
+                                      )).toList(),
                                       onChanged: (v) => setState(() => localCategory = v),
                                   )
                               ],

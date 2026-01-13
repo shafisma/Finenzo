@@ -127,6 +127,17 @@ class AppDatabase extends _$AppDatabase {
           ));
        }
     }
+
+    // Seed Default Wallet (Cash)
+    final allWallets = await select(wallets).get();
+    if (allWallets.isEmpty) {
+      await into(wallets).insert(const WalletsCompanion(
+        name: Value('Cash'),
+        type: Value('Cash'),
+        balance: Value(0.0),
+        profileId: Value(1)
+      ));
+    }
     
     // Seed SMS Patterns
     final allPatterns = await select(smsPatterns).get();
@@ -214,8 +225,32 @@ class AppDatabase extends _$AppDatabase {
       }).toList();
   }
 
+  Stream<List<TransactionWithCategory>> watchAllTransactions(int profileId) {
+      final query = select(transactions).join([
+        innerJoin(categories, categories.id.equalsExp(transactions.categoryId)),
+        leftOuterJoin(wallets, wallets.id.equalsExp(transactions.walletId))
+      ]);
+      query.where(transactions.profileId.equals(profileId));
+      query.orderBy([OrderingTerm.desc(transactions.date)]);
+      
+      return query.watch().map((rows) {
+        return rows.map((row) {
+          return TransactionWithCategory(
+            row.readTable(transactions),
+            row.readTable(categories),
+            row.readTableOrNull(wallets) ?? const Wallet(id: -1, name: 'Unknown', type: 'Other', balance: 0.0, profileId: 0),
+          );
+        }).toList();
+      });
+  }
 }
 
+class TransactionWithCategory {
+  final Transaction transaction;
+  final Category category;
+  final Wallet wallet;
+  TransactionWithCategory(this.transaction, this.category, this.wallet);
+}
 
 LazyDatabase _openConnection() {
   return LazyDatabase(() async {
