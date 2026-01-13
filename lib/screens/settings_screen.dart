@@ -88,10 +88,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         content: const Text('This will delete all transactions, wallets, and categories. This cannot be undone.'),
                         actions: [
                           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
-                          TextButton(onPressed: () {
-                             // TODO: Implement clear data
+                          TextButton(onPressed: () async {
                              Navigator.pop(ctx);
-                             ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Data reset not implemented yet')));
+                             final db = Provider.of<AppDatabase>(context, listen: false);
+                             await db.clearAllData();
+                             
+                             // Refresh profile provider to pick up the re-created default profile
+                             if (context.mounted) {
+                                final profileProvider = Provider.of<ProfileProvider>(context, listen: false);
+                                
+                                // Get the first available profile (which was just seeded)
+                                final allProfiles = await db.getAllProfiles();
+                                if (allProfiles.isNotEmpty) {
+                                    await profileProvider.switchProfile(allProfiles.first.id);
+                                }
+                                
+                                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('All data cleared and reset to defaults')));
+                             }
                           }, child: const Text('Delete', style: TextStyle(color: Colors.red))),
                         ],
                       ));

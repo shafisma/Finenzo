@@ -174,6 +174,20 @@ class AppDatabase extends _$AppDatabase {
         ));
     }
   }
+
+  Future<void> clearAllData() async {
+    await transaction(() async {
+      await delete(transactions).go();
+      await delete(budgets).go();
+      await delete(smsPatterns).go();
+      await delete(wallets).go();
+      await delete(categories).go();
+      await delete(profiles).go();
+    });
+    
+    // Re-seed defaults
+    await seedDefaults();
+  }
   
   // Analytics Helpers
   Future<List<Map<String, dynamic>>> getCategoryExpenses(int profileId) async {

@@ -50,11 +50,51 @@ class LockedApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const MaterialApp(
+    return MaterialApp(
       home: Scaffold(
-        body: Center(child: Text("Authentication Failed. Restart App.")),
+        body: Center(
+            child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                    const Icon(Icons.lock_outline, size: 64, color: Colors.grey),
+                    const SizedBox(height: 16),
+                    const Text("Authentication Failed", style: TextStyle(fontSize: 20)),
+                    const SizedBox(height: 16),
+                    FilledButton(
+                        onPressed: () {
+                            // Restart the app entirely or try to re-launch main
+                            // Since we are inside runApp(LockedApp()), we can't easily "restart" main() from here without native code or specialized packages.
+                            // But we can try to re-authenticate and if successful, run the real app.
+                            _retryAuth();
+                        }, 
+                        child: const Text("Retry")
+                    )
+                ],
+            )
+        ),
       ),
     );
+  }
+  
+  Future<void> _retryAuth() async {
+      final appLock = AppLockService();
+      bool isAuthenticated = await appLock.authenticate();
+      if (isAuthenticated) {
+          runApp(
+            MultiProvider(
+              providers: [
+                Provider<AppDatabase>(
+                  create: (context) => AppDatabase(),
+                  dispose: (context, db) => db.close(),
+                ),
+                ChangeNotifierProvider<ProfileProvider>(
+                  create: (context) => ProfileProvider(Provider.of<AppDatabase>(context, listen: false)),
+                ),
+              ],
+              child: const MyApp(),
+            ),
+          );
+      }
   }
 }
 

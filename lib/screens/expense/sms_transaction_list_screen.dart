@@ -25,20 +25,58 @@ class _SmsTransactionListScreenState extends State<SmsTransactionListScreen> {
     _scanSms();
   }
 
-  Future<void> _scanSms() async {
+  Future<void> _scanSms({int days = 7}) async {
     setState(() => _isLoading = true);
     final db = Provider.of<AppDatabase>(context, listen: false);
     final profileId = Provider.of<ProfileProvider>(context, listen: false).currentProfileId;
-    final results = await _smsService.scanInbox(db, profileId);
+    
+    // Calculate start date
+    final start = DateTime.now().subtract(Duration(days: days));
+    
+    // Increase count to ensure we get enough messages for the duration
+    final results = await _smsService.scanInbox(db, profileId, start: start, count: days * 10);
+    
     setState(() {
       _foundTransactions = results;
       _isLoading = false;
     });
   }
 
-  Future<void> _saveTransaction(SmsProp prop) async {
-      // Need to pick a wallet and category. For now, pop dialog.
+  void _showImportOptions() {
+      showModalBottomSheet(context: context, builder: (context) {
+          return Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                  ListTile(
+                      leading: const Icon(Icons.history),
+                      title: const Text('Last 30 Days'),
+                      onTap: () {
+                          Navigator.pop(context);
+                          _scanSms(days: 30);
+                      },
+                  ),
+                  ListTile(
+                      leading: const Icon(Icons.calendar_month),
+                      title: const Text('Last Month'),
+                      onTap: () {
+                          Navigator.pop(context);
+                           _scanSms(days: 60);
+                      },
+                  ),
+                   ListTile(
+                      leading: const Icon(Icons.refresh),
+                      title: const Text('Sync Recent (7 days)'),
+                      onTap: () {
+                          Navigator.pop(context);
+                           _scanSms(days: 7);
+                      },
+                  ),
+              ],
+          );
+      });
+  }
 
+  Future<void> _saveTransaction(SmsProp prop) async {
       final db = Provider.of<AppDatabase>(context, listen: false);
       final profileId = Provider.of<ProfileProvider>(context, listen: false).currentProfileId;
 
@@ -122,56 +160,56 @@ class _SmsTransactionListScreenState extends State<SmsTransactionListScreen> {
       });
   }
 
-  List<SmsProp> get _filteredTransactions {
-    if (_searchQuery.isEmpty) return _foundTransactions;
-    return _foundTransactions.where((t) =>
-      t.sender.toLowerCase().contains(_searchQuery.toLowerCase()) ||
-      t.amount.toString().contains(_searchQuery)
-    ).toList();
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('SMS Scanner'),
+        title: const Text('Found Transactions'),
+        elevation: 0,
         actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: _scanSms,
-          ),
-        ],
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(50),
-          child: Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: TextField(
-              decoration: const InputDecoration(
-                hintText: 'Search by sender or amount...',
-                border: OutlineInputBorder(),
-                prefixIcon: Icon(Icons.search),
-              ),
-              onChanged: (value) => setState(() => _searchQuery = value),
+             IconButton(
+                icon: const Icon(Icons.download, color: Colors.blue),
+                tooltip: 'Import Options',
+                onPressed: _showImportOptions,
             ),
-          ),
-        ),
+             IconButton(
+               icon: const Icon(Icons.refresh),
+               onPressed: () => _scanSms(days: 7),
+             ),
+        ],
       ),
       body: _isLoading
          ? const Center(child: CircularProgressIndicator())
-         : _filteredTransactions.isEmpty
-             ? const Center(child: Text('No relevant SMS found'))
+         : _foundTransactions.isEmpty
+             ? Center(
+                 child: Column(
+                   mainAxisAlignment: MainAxisAlignment.center,
+                   children: [
+                     const Icon(Icons.sms_failed_outlined, size: 64, color: Colors.grey),
+                     const SizedBox(height: 16),
+                     const Text('No relevant SMS found', style: TextStyle(color: Colors.grey)),
+                     TextButton(onPressed: _showImportOptions, child: const Text('Try importing from history'))
+                   ],
+                 )
+               )
              : ListView.builder(
-                 itemCount: _filteredTransactions.length,
+                 itemCount: _foundTransactions.length,
                  itemBuilder: (context, index) {
-                     final item = _filteredTransactions[index];
+                     final item = _foundTransactions[index];
                      return Card(
-                         margin: const EdgeInsets.all(8),
+                         elevation: 0,
+                         margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                         color: Theme.of(context).colorScheme.surfaceContainer,
                          child: ListTile(
-                             title: Text('৳${item.amount} (${item.isExpense ? 'Expense' : 'Income'})'),
-                             subtitle: Text('${item.sender}\n${DateFormat('MMM d').format(item.date)}'),
-                             trailing: IconButton(
-                                 icon: const Icon(Icons.check, color: Colors.green),
+                             leading: CircleAvatar(
+                               backgroundColor: item.isExpense ? Colors.red.withOpacity(0.1) : Colors.green.withOpacity(0.1),
+                               child: Icon(item.isExpense ? Icons.arrow_upward : Icons.arrow_downward, color: item.isExpense ? Colors.red : Colors.green),
+                             ),
+                             title: Text('৳${item.amount.toStringAsFixed(0)}'),
+                             subtitle: Text('${item.sender} • ${DateFormat('MMM d, h:mm a').format(item.date)}'),
+                             trailing: FilledButton.tonal(
                                  onPressed: () => _saveTransaction(item),
+                                 child: const Text('Add'),
                              ),
                          ),
                      );

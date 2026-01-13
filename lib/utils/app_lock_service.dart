@@ -23,7 +23,8 @@ class AppLockService {
       final bool canAuthenticate = canAuthenticateWithBiometrics || await auth.isDeviceSupported();
 
       if (!canAuthenticate) {
-          // If hardware not supported, assume true or fallback to PIN (not impl here)
+          // If hardware not supported, assume true. 
+          // Ideally should offer passcode fallback if configured.
           return true; 
       }
 
@@ -31,9 +32,11 @@ class AppLockService {
         localizedReason: 'Please authenticate to access Expense Tracker',
         options: const AuthenticationOptions(
           stickyAuth: true,
+          biometricOnly: false, // Allow PIN/Pattern if biometric fails
         ),
       );
     } on PlatformException catch (_) {
+      // If error occurs (e.g., user canceled, not enrolled), treat as failed auth unless specific case
       return false;
     }
   }
