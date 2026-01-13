@@ -17,8 +17,8 @@ subprojects {
 }
 
 subprojects {
-    afterEvaluate {
-        if (project.name == "telephony") {
+    if (project.name == "telephony") {
+        val fixNamespace = {
              val android = project.extensions.findByName("android")
              if (android != null) {
                  try {
@@ -28,6 +28,12 @@ subprojects {
                      project.logger.warn("Failed to set namespace for telephony: ${e.message}")
                  }
              }
+        }
+        
+        if (project.state.executed) {
+            fixNamespace()
+        } else {
+            project.afterEvaluate { fixNamespace() }
         }
     }
 }
