@@ -157,6 +157,21 @@ class AppDatabase extends _$AppDatabase {
             regexPattern: Value(r'Tk\s*([\d,]+\.?\d*)'),
             profileId: Value(1)
         ));
+         await into(smsPatterns).insert(const SmsPatternsCompanion(
+            sender: Value('Rocket'),
+            regexPattern: Value(r'Tk\s*([\d,]+\.?\d*)'),
+            profileId: Value(1)
+        ));
+         await into(smsPatterns).insert(const SmsPatternsCompanion(
+            sender: Value('Bank Asia'),
+            regexPattern: Value(r'Tk\s*([\d,]+\.?\d*)'),
+            profileId: Value(1)
+        ));
+         await into(smsPatterns).insert(const SmsPatternsCompanion(
+            sender: Value('Dutch-Bangla'),
+            regexPattern: Value(r'Tk\s*([\d,]+\.?\d*)'),
+            profileId: Value(1)
+        ));
     }
   }
   

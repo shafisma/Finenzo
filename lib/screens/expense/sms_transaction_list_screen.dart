@@ -17,6 +17,7 @@ class _SmsTransactionListScreenState extends State<SmsTransactionListScreen> {
   final SmsService _smsService = SmsService();
   bool _isLoading = true;
   List<SmsProp> _foundTransactions = [];
+  String _searchQuery = '';
 
   @override
   void initState() {
@@ -37,23 +38,22 @@ class _SmsTransactionListScreenState extends State<SmsTransactionListScreen> {
 
   Future<void> _saveTransaction(SmsProp prop) async {
       // Need to pick a wallet and category. For now, pop dialog.
-      
+
       final db = Provider.of<AppDatabase>(context, listen: false);
       final profileId = Provider.of<ProfileProvider>(context, listen: false).currentProfileId;
-      // In a real app we would map sender to wallet ID.
-      // But for offline simple use, let user confirm details.
-      
-      // We skip full AI mapping and just show the Add Screen pre-filled or a quick confirm dialog
-      // For speed, let's use a quick confirm dialog that defaults to Cash/Expense
-      
+
       // Fetch all categories (Income & Expense)
       final categories = await (db.select(db.categories)..where((t) => t.profileId.equals(profileId))).get();
       final wallets = await (db.select(db.wallets)..where((t) => t.profileId.equals(profileId))).get();
-      
+
       if (!mounted) return;
-      
-      int? selectedWallet = wallets.isNotEmpty ? wallets.first.id : null;
-      int? selectedCategory = categories.isNotEmpty ? categories.first.id : null;
+
+      // Pre-select wallet based on targetWalletId or first
+      int? selectedWallet = prop.targetWalletId ?? (wallets.isNotEmpty ? wallets.first.id : null);
+      // Pre-select category based on isExpense
+      int? selectedCategory = categories.where((c) => c.isExpense == prop.isExpense).isNotEmpty
+          ? categories.firstWhere((c) => c.isExpense == prop.isExpense).id
+          : (categories.isNotEmpty ? categories.first.id : null);
       
       await showDialog(
           context: context, 
@@ -122,22 +122,52 @@ class _SmsTransactionListScreenState extends State<SmsTransactionListScreen> {
       });
   }
 
+  List<SmsProp> get _filteredTransactions {
+    if (_searchQuery.isEmpty) return _foundTransactions;
+    return _foundTransactions.where((t) =>
+      t.sender.toLowerCase().contains(_searchQuery.toLowerCase()) ||
+      t.amount.toString().contains(_searchQuery)
+    ).toList();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('SMS Scanner')),
-      body: _isLoading 
+      appBar: AppBar(
+        title: const Text('SMS Scanner'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: _scanSms,
+          ),
+        ],
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(50),
+          child: Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: TextField(
+              decoration: const InputDecoration(
+                hintText: 'Search by sender or amount...',
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.search),
+              ),
+              onChanged: (value) => setState(() => _searchQuery = value),
+            ),
+          ),
+        ),
+      ),
+      body: _isLoading
          ? const Center(child: CircularProgressIndicator())
-         : _foundTransactions.isEmpty 
+         : _filteredTransactions.isEmpty
              ? const Center(child: Text('No relevant SMS found'))
              : ListView.builder(
-                 itemCount: _foundTransactions.length,
+                 itemCount: _filteredTransactions.length,
                  itemBuilder: (context, index) {
-                     final item = _foundTransactions[index];
+                     final item = _filteredTransactions[index];
                      return Card(
                          margin: const EdgeInsets.all(8),
                          child: ListTile(
-                             title: Text('৳${item.amount}'),
+                             title: Text('৳${item.amount} (${item.isExpense ? 'Expense' : 'Income'})'),
                              subtitle: Text('${item.sender}\n${DateFormat('MMM d').format(item.date)}'),
                              trailing: IconButton(
                                  icon: const Icon(Icons.check, color: Colors.green),
