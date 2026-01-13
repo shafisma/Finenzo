@@ -1,9 +1,10 @@
-import 'package:flutter_sms_inbox/flutter_sms_inbox.dart';
+import 'dart:io';
+import 'package:telephony/telephony.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../database/database.dart';
 
 class SmsService {
-  final SmsQuery _query = SmsQuery();
+  final Telephony _telephony = Telephony.instance;
 
   bool _detectTransactionType(String body) {
     final lowerBody = body.toLowerCase();
@@ -23,6 +24,8 @@ class SmsService {
   }
 
   Future<List<SmsProp>> scanInbox(AppDatabase db, int profileId, {DateTime? start, int count = 50}) async {
+    if (!Platform.isAndroid) return [];
+
     var permission = await Permission.sms.status;
     if (permission.isDenied) {
       permission = await Permission.sms.request();
@@ -32,14 +35,21 @@ class SmsService {
       return [];
     }
     
-    final messages = await _query.querySms(
-      kinds: [SmsQueryKind.inbox],
-      count: count, 
+    // Telephony query
+    List<SmsMessage> messages = await _telephony.getInboxSms(
+      columns: [SmsColumn.ADDRESS, SmsColumn.BODY, SmsColumn.DATE],
+      sortOrder: [OrderBy(SmsColumn.DATE, sort: Sort.DESC)],
     );
+
     
-    // Filter by date if start date provided
+    if (messages.length > count) {
+      messages = messages.sublist(0, count);
+    }
+    
     final filteredMessages = start == null ? messages : messages.where((m) {
-        return m.date != null && m.date!.isAfter(start);
+        if (m.date == null) return false;
+        final msgDate = DateTime.fromMillisecondsSinceEpoch(m.date!);
+        return msgDate.isAfter(start);
     }).toList();
 
     // Get patterns
@@ -52,28 +62,33 @@ class SmsService {
        final sender = msg.address;
        if (body == null || sender == null) continue;
        final originalBody = msg.body ?? "";
+       final msgDate = DateTime.fromMillisecondsSinceEpoch(msg.date ?? DateTime.now().millisecondsSinceEpoch);
 
        // If patterns exist, use them. If not, try generic matching
        bool matched = false;
        for (var pattern in patterns) {
            if (sender.toLowerCase().contains(pattern.sender.toLowerCase())) {
-               final regExp = RegExp(pattern.regexPattern);
-               final match = regExp.firstMatch(body); // Pattern matching often assumes normalized/lower body or specific regex flags. Assuming body is okay here.
-               if (match != null) {
-                   String amountStr = match.group(1) ?? "0";
-                   amountStr = amountStr.replaceAll(',', '');
-                   final amount = double.tryParse(amountStr);
-                   if (amount != null) {
-                       proposedTransactions.add(SmsProp(
-                           sender: sender,
-                           amount: amount,
-                           date: msg.date ?? DateTime.now(),
-                           isExpense: _detectTransactionType(body),
-                           body: originalBody,
-                           targetWalletId: pattern.targetWalletId
-                       ));
-                       matched = true;
-                   }
+               try {
+                 final regExp = RegExp(pattern.regexPattern, caseSensitive: false);
+                 final match = regExp.firstMatch(originalBody);
+                 if (match != null) {
+                     String amountStr = match.group(1) ?? "0";
+                     amountStr = amountStr.replaceAll(',', '');
+                     final amount = double.tryParse(amountStr);
+                     if (amount != null) {
+                         proposedTransactions.add(SmsProp(
+                             sender: sender,
+                             amount: amount,
+                             date: msgDate,
+                             isExpense: _detectTransactionType(originalBody),
+                             body: originalBody,
+                             targetWalletId: pattern.targetWalletId
+                         ));
+                         matched = true;
+                     }
+                 }
+               } catch (e) {
+                 // Ignore regex errors
                }
            }
        }
@@ -91,7 +106,7 @@ class SmsService {
                        proposedTransactions.add(SmsProp(
                            sender: sender,
                            amount: amount,
-                           date: msg.date ?? DateTime.now(),
+                           date: msgDate,
                            isExpense: _detectTransactionType(originalBody),
                            body: originalBody
                        ));
