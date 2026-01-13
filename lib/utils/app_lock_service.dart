@@ -29,7 +29,7 @@ class AppLockService {
       }
 
       return await auth.authenticate(
-        localizedReason: 'Please authenticate to access Expense Tracker',
+        localizedReason: 'Please authenticate to access Finenzo',
         options: const AuthenticationOptions(
           stickyAuth: true,
           biometricOnly: false, // Allow PIN/Pattern if biometric fails
