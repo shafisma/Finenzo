@@ -16,6 +16,22 @@ subprojects {
     project.evaluationDependsOn(":app")
 }
 
+subprojects {
+    afterEvaluate {
+        if (project.name == "telephony") {
+             val android = project.extensions.findByName("android")
+             if (android != null) {
+                 try {
+                     val setNamespace = android.javaClass.getMethod("setNamespace", String::class.java)
+                     setNamespace.invoke(android, "com.shounakmulay.telephony")
+                 } catch (e: Exception) {
+                     project.logger.warn("Failed to set namespace for telephony: ${e.message}")
+                 }
+             }
+        }
+    }
+}
+
 tasks.register<Delete>("clean") {
     delete(rootProject.layout.buildDirectory)
 }
